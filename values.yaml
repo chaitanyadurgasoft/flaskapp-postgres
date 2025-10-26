@@ -1,6 +1,6 @@
 microservices:
   - name: mydb
-    image: postgres
+    image: postgres:16
     port: 5432
     replicas: 1
     minReadySeconds: 3
@@ -13,20 +13,77 @@ microservices:
           name: my-db
           key: password
       db:
-        name:  POSTGRES_DB
+        name: POSTGRES_DB
         secretKeyRef:
           name: my-db
           key: db
     volumes:
       name: postgres-storage
     volumemounts:
-      mountPath: /var/lib/postgresql/data
+      mountPath: /var/lib/postgresql
 
   - name: studentapp
-    image: "chaitanyamanikumar/mydb:v1"
+    image: "chaitanyamanikumar/mydb:v2"
     minReadySeconds: 60
     port: 5000
     replicas: 2
     type: NodePort
     labels: pythonapp
-
+    initContainers:
+      - name: wait-for-db
+        image: postgres:16-alpine
+        command:
+          - sh
+          - -c
+          - |
+            echo "=========================================="
+            echo "Step 1: Checking if PostgreSQL server is reachable..."
+            echo "=========================================="
+            
+            until pg_isready -h mydb -p 5432 -U postgres; do
+              echo "⏳ PostgreSQL server is not ready yet - waiting 3 seconds..."
+              sleep 3
+            done
+            
+            echo "✅ PostgreSQL server is UP and accepting connections!"
+            echo ""
+            echo "=========================================="
+            echo "Step 2: Verifying 'student' database exists..."
+            echo "=========================================="
+            
+            export PGPASSWORD=$POSTGRES_PASSWORD
+            
+            until psql -h mydb -U postgres -d student -c 'SELECT 1' >/dev/null 2>&1; do
+              echo "⏳ Database 'student' is not ready yet - waiting 3 seconds..."
+              sleep 3
+            done
+            
+            echo "✅ Database 'student' exists and is accessible!"
+            echo ""
+            echo "=========================================="
+            echo "Step 3: Database connection test successful!"
+            echo "=========================================="
+            echo "🚀 Ready to start the Python application..."
+        env:
+          password:
+            name: POSTGRES_PASSWORD
+            secretKeyRef:
+              name: my-db
+              key: password
+    env:
+      password:
+        name: POSTGRES_PASSWORD
+        secretKeyRef:
+          name: my-db
+          key: password
+      db:
+        name: POSTGRES_DB
+        secretKeyRef:
+          name: my-db
+          key: db
+      db_host:
+        name: POSTGRES_HOST
+        value: mydb
+      db_user:
+        name: POSTGRES_USER
+        value: postgres
