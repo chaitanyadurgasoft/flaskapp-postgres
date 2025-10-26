@@ -67,6 +67,10 @@ spec:
             value: {{ .env.db_user.value | quote }}
           {{- end }}
         {{- end }}
+        {{- if .resources }}
+        resources:
+{{ toYaml .resources | indent 10 }}
+        {{- end }}
         {{- if .volumemounts }}
         volumeMounts:
           - name: {{ .volumes.name }}

@@ -20,7 +20,22 @@ microservices:
     volumes:
       name: postgres-storage
     volumemounts:
-      mountPath: /var/lib/postgresql
+      mountPath: /var/lib/postgresql/data
+    # Resource limits for database
+    resources:
+      requests:
+        memory: "256Mi"
+        cpu: "250m"
+      limits:
+        memory: "512Mi"
+        cpu: "500m"
+    # HPA for database (usually not recommended, but included for reference)
+    hpa:
+      enabled: false  # Databases typically shouldn't auto-scale
+      minReplicas: 1
+      maxReplicas: 3
+      targetCPUUtilizationPercentage: 80
+      targetMemoryUtilizationPercentage: 80
 
   - name: studentapp
     image: "chaitanyamanikumar/mydb:v2"
@@ -87,3 +102,38 @@ microservices:
       db_user:
         name: POSTGRES_USER
         value: postgres
+    # Resource limits for application (REQUIRED for HPA)
+    resources:
+      requests:
+        memory: "128Mi"
+        cpu: "100m"
+      limits:
+        memory: "256Mi"
+        cpu: "200m"
+    # HPA configuration for application
+    hpa:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 10
+      targetCPUUtilizationPercentage: 70
+      targetMemoryUtilizationPercentage: 80
+      # Optional: Advanced scaling behavior
+      behavior:
+        scaleDown:
+          stabilizationWindowSeconds: 300  # Wait 5 minutes before scaling down
+          policies:
+          - type: Percent
+            value: 50  # Scale down max 50% of current pods
+            periodSeconds: 60
+          - type: Pods
+            value: 2  # Or scale down max 2 pods
+            periodSeconds: 60
+        scaleUp:
+          stabilizationWindowSeconds: 0  # Scale up immediately
+          policies:
+          - type: Percent
+            value: 100  # Scale up max 100% (double) of current pods
+            periodSeconds: 30
+          - type: Pods
+            value: 4  # Or scale up max 4 pods at once
+            periodSeconds: 30
